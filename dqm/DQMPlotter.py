@@ -8,8 +8,38 @@ import cmsplot as cplt
 
 
 class DQMPlotter:
-    """Base class for DQM validation plotters. Subclasses must set ROOTPATH, FILENAMEPREFIX,
-    DATAPATH, DATALABEL, COLLECTIONS, EFFCUTS, and implement loadData()."""
+    """Base class for CMS DQM validation plotters.
+
+    Provides a two-step workflow for loading ROOT-based DQM histograms and
+    producing publication-quality comparison plots:
+
+    1. **Initialisation** — pass one or more run configurations (ROOT files) and
+       optionally a set of track/vertex collections to ``__init__``.  The class
+       opens the files and calls :meth:`loadData` automatically.
+    2. **Plot configuration** — call :meth:`setPlottingConfiguration` to choose
+       which configurations and collections to overlay, set colours, labels, etc.
+    3. **Plotting** — call :meth:`plotHistogram` (or a subclass-specific method)
+       for each histogram of interest.
+
+    Subclasses must override:
+
+    - ``DATAPATH``, ``FILENAMEPREFIX``, ``ROOTPATH`` — filesystem / ROOT-path settings.
+    - ``DATALABEL`` — right-hand CMS label string.
+    - ``COLLECTIONS`` — mapping from friendly name to ROOT subdirectory name.
+    - ``EFFCUTS`` — dict of cut strings shown on efficiency plot labels.
+    - :meth:`loadData` — populate ``self.DATA`` from ``self.FILES``.
+
+    The ``CONFIGURATIONS`` dict maps an arbitrary config tag to a 2-element list
+    ``[color, label]``, for example::
+
+        CONFIGURATIONS = {
+            "Run3_v1": ["#e41a1c", "Run 3 v1"],
+            "Run3_v2": ["#377eb8", "Run 3 v2"],
+        }
+
+    The ROOT file for config tag ``tag`` is expected at
+    ``<DATAPATH>/<FILENAMEPREFIX><tag>.root``.
+    """
 
     # Data configuration — subclasses override these
     CONFIGURATIONS = {}
@@ -46,6 +76,31 @@ class DQMPlotter:
     CUT_TECHEFF = None
 
     def __init__(self, CONFIGURATIONS={}, COLLECTIONS={}, DATAPATH=None):
+        """Initialise the plotter, open ROOT files, and load histogram data.
+
+        Args:
+            CONFIGURATIONS (dict): Mapping from config tag to ``[color, label]``.
+                Each tag must correspond to a ROOT file
+                ``<DATAPATH>/<FILENAMEPREFIX><tag>.root``.  Example::
+
+                    {
+                        "Run3_v1": ["#e41a1c", "Run 3 baseline"],
+                        "Run3_v2": ["#377eb8", "Run 3 new geometry"],
+                    }
+
+            COLLECTIONS (dict, optional): Extra track/vertex collections to add on
+                top of the subclass defaults, keyed by a friendly name.
+            DATAPATH (str, optional): Override the subclass ``DATAPATH``.
+
+        Example::
+
+            plotter = TrackingDQMPlotter(
+                CONFIGURATIONS={
+                    "baseline": ["#e41a1c", "Baseline"],
+                    "new":      ["#377eb8", "New geometry"],
+                },
+            )
+        """
         self.updateConfiguration(
             CONFIGURATIONS=CONFIGURATIONS,
             COLLECTIONS=COLLECTIONS,
@@ -54,7 +109,19 @@ class DQMPlotter:
         self.loadData()
 
     def updateConfiguration(self, CONFIGURATIONS={}, COLLECTIONS={}, DATAPATH=None):
-        """Merge new run configurations and/or collections into the current setup."""
+        """Merge additional run configurations or collections into the current setup.
+
+        Can be called after ``__init__`` to add more ROOT files without discarding
+        already-loaded data.  New entries are merged (not replaced) into the
+        existing ``CONFIGURATIONS`` and ``COLLECTIONS`` dicts.
+
+        Args:
+            CONFIGURATIONS (dict, optional): Additional config-tag → ``[color, label]``
+                entries to merge.
+            COLLECTIONS (dict, optional): Additional collection name → ROOT subdirectory
+                entries to merge.
+            DATAPATH (str, optional): Override the current data path.
+        """
         if CONFIGURATIONS:
             self.CONFIGURATIONS = self.CONFIGURATIONS | CONFIGURATIONS
         if COLLECTIONS:
@@ -91,10 +158,58 @@ class DQMPlotter:
         MARKERS=["s", "^", "D", "v", "o", "."] + ["."] * 30,
         CUSTOMIZESTYLE=False,
     ):
-        """Set the plotting configuration. PLOTTINGCONFIGURATION can be:
-        - a dict: label -> [configtag, collectiontag]
-        - a list: of [configtag, collectiontag] pairs (labels filled from NAMES)
-        - a string: collectiontag (one line per config in CONFIGURATIONS)
+        """Configure which histograms to overlay and how to style the plots.
+
+        Must be called before any plotting method.  ``PLOTTINGCONFIGURATION``
+        selects the (config, collection) pairs to draw and accepts three forms:
+
+        - **dict** — maps legend label to ``[config_tag, collection_name]``::
+
+              {
+                  "Baseline pixel tracks": ["Run3_v1", "PixelTracks"],
+                  "New pixel tracks":      ["Run3_v2", "PixelTracks"],
+              }
+
+        - **list** — list of ``[config_tag, collection_name]`` pairs; legend labels
+          are taken from the ``NAMES`` dict (i.e. the label set in ``CONFIGURATIONS``)::
+
+              [["Run3_v1", "PixelTracks"], ["Run3_v2", "PixelTracks"]]
+
+        - **string** — a single collection name; one line per loaded config::
+
+              "PixelTracks"
+
+        Args:
+            PLOTTINGCONFIGURATION (dict | list | str): Selection of
+                (config, collection) pairs to overlay (see above).
+            DRAFT (bool): If ``True``, print a grey "DRAFT" watermark on every plot.
+            CMSLABEL (str): Left-hand CMS label, e.g. ``"Simulation (Private Work)"``.
+            DATALABEL (str, optional): Override the right-hand label (dataset description).
+            OBJECTLABEL (str, optional): Short object description appended to
+                ``DATALABEL`` as ``", <OBJECTLABEL>"``, e.g. ``"HLT pixel tracks"``.
+            EFFCUTS (dict, optional): Partial override of the subclass ``EFFCUTS``
+                dict.  Only the provided keys are updated; others are kept.
+            CUT_TECHEFF (str | None, optional): Cut string appended exclusively to
+                technical-efficiency plot labels.  Pass ``None`` to suppress it.
+                Defaults to the subclass value (``...`` = do not change).
+            RATIO (bool): Show a ratio (or difference) panel below the main plot.
+            EXTENDPLOTNAME (bool): Append config/collection tags to the saved filename.
+            LEGEND (bool): Show the legend.
+            DIR (str, optional): Output directory for saved figures.
+            SAVEAS (list[str]): File extensions to save, e.g. ``["png", "pdf"]``.
+            MARKERS (list): Matplotlib marker strings, one per overlay line.
+            CUSTOMIZESTYLE (bool): Apply additional CMS style customisations via
+                ``cmsplot.setStyle``.
+
+        Example::
+
+            plotter.setPlottingConfiguration(
+                PLOTTINGCONFIGURATION="PixelTracks",
+                CMSLABEL="Simulation (Private Work)",
+                RATIO=True,
+                DIR="plots/tracking",
+                SAVEAS=["png", "pdf"],
+            )
         """
         if isinstance(PLOTTINGCONFIGURATION, dict):
             self.PLOTTINGCONFIGURATION = PLOTTINGCONFIGURATION
@@ -134,15 +249,30 @@ class DQMPlotter:
         cplt.setStyle(CUSTOMIZESTYLE)
 
     def loadData(self):
+        """Load histogram data from ROOT files into ``self.DATA``.
+
+        Must be implemented by every subclass.  Implementations should iterate
+        over ``self.CONFIGS`` and ``self.COLLS``, create :class:`~cmsplot.Hist`
+        objects from ``self.FILES[config][colldir]``, and store them in
+        ``self.DATA[config][coll]`` as a dict keyed by a histogram name string.
+        """
         raise NotImplementedError
 
     def _datalabel(self, histoName):
         """Build the right-side CMS label string for the given histogram.
 
-        For non-efficiency histograms returns DATALABEL (+ OBJECTLABEL if set).
-        For efficiency histograms, appends a line of cut strings from EFFCUTS,
-        excluding the cut whose key matches the x-axis variable in histoName.
-        CUT_TECHEFF is additionally appended for techEff histograms.
+        For non-efficiency histograms returns ``DATALABEL`` (with ``OBJECTLABEL``
+        appended if set).  For efficiency histograms, a second line of active cut
+        strings is appended, automatically excluding the cut whose key matches
+        a substring of ``histoName`` (i.e. the variable on the x-axis).
+        ``CUT_TECHEFF`` is additionally appended for technical-efficiency histograms.
+
+        Args:
+            histoName (str): Internal histogram key used to detect the x-axis
+                variable and whether the histogram is an efficiency.
+
+        Returns:
+            str: Formatted label string, possibly multi-line.
         """
         ISEFF = ("eff" in histoName) or ("techEff" in histoName)
         ISTECHEFF = "techEff" in histoName
@@ -160,6 +290,20 @@ class DQMPlotter:
         return header + ("\n" + cuts_str if cuts_str else "")
 
     def getEfficiency(self, passing, total):
+        """Compute per-bin efficiency and 68.3 % Clopper–Pearson confidence intervals.
+
+        Uses :func:`scipy.stats.binomtest` for each bin individually.  Bins with
+        zero total entries are assigned efficiency 0 and zero-width intervals.
+
+        Args:
+            passing (array-like): Number of passing entries per bin.
+            total (array-like): Number of total entries per bin.
+
+        Returns:
+            tuple[np.ndarray, np.ndarray, np.ndarray]:
+                ``(efficiency, ci_low, ci_high)`` — all arrays of the same length
+                as the input.
+        """
         yEff, yEffErrUp, yEffErrLow = [], [], []
         for yPass, yTot in zip(passing, total):
             if yTot > 0:
@@ -174,7 +318,25 @@ class DQMPlotter:
         return np.array(yEff), np.array(yEffErrLow), np.array(yEffErrUp)
 
     def getDiffHist(self, Hist1, Hist2=None):
-        """Difference histogram with error propagation. Not correct for efficiencies."""
+        """Return a histogram representing the bin-by-bin difference ``Hist1 - Hist2``.
+
+        Errors are propagated in quadrature.  If ``Hist2`` is omitted, returns a
+        zero-valued histogram with the same errors as ``Hist1`` (useful as a
+        reference uncertainty band in ratio panels).
+
+        Note:
+            This method is not statistically correct for efficiency histograms,
+            where errors are asymmetric and correlated.  Use it only for raw counts
+            or derived rate histograms.
+
+        Args:
+            Hist1 (Hist): Minuend histogram.
+            Hist2 (Hist, optional): Subtrahend histogram.  If ``None``, the result
+                has zero values but preserves ``Hist1``'s errors.
+
+        Returns:
+            Hist: Difference histogram with propagated errors.
+        """
         sumHist = Hist()
         sumHist.edges = Hist1.edges
         if Hist2 is None:
@@ -186,6 +348,18 @@ class DQMPlotter:
         return sumHist
 
     def isLogScale(self, edges, rtol=1e-5):
+        """Check whether a set of bin edges is approximately logarithmically spaced.
+
+        Compares the ratio of the last two edges to the ratio of the first two.
+        If they agree within ``rtol``, the binning is considered logarithmic.
+
+        Args:
+            edges (array-like): Bin edge array (length = n_bins + 1).
+            rtol (float): Relative tolerance for the spacing comparison.
+
+        Returns:
+            bool: ``True`` if the edges are log-spaced.
+        """
         return abs((edges[-1] / edges[-2]) - (edges[1] / edges[0])) < rtol
 
     def plotHistogram(
@@ -202,6 +376,60 @@ class DQMPlotter:
         factor=None,
         limitYTicks=False,
     ):
+        """Plot one histogram for all entries in ``PLOTTINGCONFIGURATION``.
+
+        Overlays the selected (config, collection) pairs on a single panel, with
+        an optional ratio or difference sub-panel below.  The figure is saved to
+        ``DIR/<histoName>.<ext>`` for each extension in ``SAVEAS``.
+
+        If the histogram has not been pre-loaded by :meth:`loadData`, it is loaded
+        on the fly from the corresponding ROOT file.
+
+        Args:
+            histoName (str): Key of the histogram to plot.  Must match an entry in
+                ``self.DATA[config][coll]`` or a histogram name in the ROOT file.
+                The key is also used as the output filename.  Histograms whose name
+                contains ``"eff"`` or ``"techEff"`` are treated as efficiencies:
+                cut labels are added automatically and ``limitYTicks`` is useful.
+            yLim (tuple[float | None, float | None]): ``(yMin, yMax)`` for the
+                main panel.  ``None`` uses the automatic matplotlib limit.  Extra
+                headroom for the legend is added on top automatically.
+            xLim (tuple[float | None, float | None]): ``(xMin, xMax)`` for the
+                x-axis.  ``None`` uses the automatic limit.
+            xLabel (str, optional): x-axis label.  If ``None``, an automatic label
+                is applied for ``"Eta"`` and ``"Pt"`` histogram names.
+            yLabel (str, optional): y-axis label for the main panel.
+            yScale (str, optional): y-axis scale, e.g. ``"log"``.
+            xScale (str, optional): Force x-axis scale, e.g. ``"log"``.
+                Histograms with ``"Pt"`` in the name are set to log automatically.
+            ratioType (str): ``"ratio"`` (default) draws ``hist_i / hist_0``;
+                ``"diff"`` draws ``hist_i - hist_0``.
+            ratioYLim (tuple[float | None, float | None]): y-axis limits for the
+                ratio/difference sub-panel.  Out-of-range points are indicated by
+                arrow markers.
+            factor (float, optional): Multiplicative rescaling factor applied to
+                the y-axis tick labels (useful for unit conversions).
+            limitYTicks (bool): If ``True``, restrict y-axis ticks to ``[0, 1]``,
+                which is convenient for efficiency plots to avoid crowded tick labels
+                outside the physical range.
+
+        Example::
+
+            plotter.plotHistogram(
+                "efficiencyVsEta",
+                yLim=(0.5, 1.0),
+                xLim=(-4.0, 4.0),
+                ratioYLim=(0.95, 1.05),
+                limitYTicks=True,
+            )
+
+            plotter.plotHistogram(
+                "nTracksVsPt",
+                yScale="log",
+                yLim=(1e2, 1e6),
+                ratioType="ratio",
+            )
+        """
         ISEFF = ("eff" in histoName) or ("techEff" in histoName)
 
         ADDPLACE = (0.8 if ISEFF else 0.6) if self.RATIO else (0.65 if ISEFF else 0.54)
