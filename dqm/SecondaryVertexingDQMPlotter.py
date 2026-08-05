@@ -78,17 +78,19 @@ class SecondaryVertexingDQMPlotter(DQMPlotter):
     # Set to None to suppress.
     CUT_TECHEFF = r"$N_{tracks} \geq 2$"
 
-    def makeMetricDict(self, rootdir, variable, include_eff=True):
+    def makeMetricDict(self, rootdir, variable, coll, include_eff=True):
         """Build a ``{metricKey: Hist}`` dict of rate histograms for one x-axis variable.
 
         Constructs histogram keys of the form ``"<metric>Vs<Variable>"`` (e.g.
         ``"effVsDecayLength"``) and loads the corresponding ``Hist`` objects from
-        the ROOT directory.
+        the ROOT directory.  Each histogram is registered in ``HIST_REGISTRY`` via
+        :meth:`~DQMPlotter._register`.
 
         Args:
             rootdir: uproot directory object for the current collection.
             variable (str): x-axis variable name as it appears in the ROOT histogram
                 name, e.g. ``"decayLength"``, ``"eta"``, ``"pt"``.
+            coll (str): Collection name used for registry lookup (key in ``COLLECTIONS``).
             include_eff (bool): If ``True`` (default), include efficiency
                 (``"eff"``), technical efficiency (``"techEff"``), and merge-rate
                 (``"merge"``) histograms in addition to the fake, duplicate, and
@@ -101,22 +103,27 @@ class SecondaryVertexingDQMPlotter(DQMPlotter):
         metrics = {"fake": "fakeRate", "dup": "duplicateRate", "pileup": "pileupRate"}
         if include_eff:
             metrics = {"eff": "effic", "techEff": "techEffic", "merge": "mergeRate", **metrics}
-        return {
-            f"{key}Vs{variable[0].upper()}{variable[1:]}": Hist(rootdir, f"{histoPrefix}_vs_{variable}")
-            for key, histoPrefix in metrics.items()
-        }
+        result = {}
+        for metricKey, histoPrefix in metrics.items():
+            key = f"{metricKey}Vs{variable[0].upper()}{variable[1:]}"
+            root_name = f"{histoPrefix}_vs_{variable}"
+            result[key] = Hist(rootdir, root_name)
+            self._register(coll, key, root_name)
+        return result
 
-    def makeResolutionDict(self, rootdir, variable, include_eta=False):
+    def makeResolutionDict(self, rootdir, variable, coll, include_eta=False):
         """Build a ``{metricKey: Hist}`` dict of resolution histograms for one quantity.
 
         Constructs histogram keys of the form ``"<variable><Metric>"`` (e.g.
         ``"xResVsNTracks"``) using the mean and sigma of pull/residual profiles
-        stored in the ROOT file.
+        stored in the ROOT file.  Each histogram is registered in ``HIST_REGISTRY``
+        via :meth:`~DQMPlotter._register`.
 
         Args:
             rootdir: uproot directory object for the current collection.
             variable (str): Quantity name as it appears in the ROOT histogram
                 prefix, e.g. ``"x"``, ``"y"``, ``"z"``, ``"phi"``, ``"decayLength"``.
+            coll (str): Collection name used for registry lookup (key in ``COLLECTIONS``).
             include_eta (bool): If ``True``, also include ``"BiasVsEta"`` and
                 ``"ResVsEta"`` entries (only available for spatial coordinates).
 
@@ -135,10 +142,13 @@ class SecondaryVertexingDQMPlotter(DQMPlotter):
         }
         if include_eta:
             metrics = {"BiasVsEta": "_res_vs_eta_Mean", "ResVsEta": "_res_vs_eta_Sigma", **metrics}
-        return {
-            f"{variable}{key}": Hist(rootdir, f"{variable}{suffix}")
-            for key, suffix in metrics.items()
-        }
+        result = {}
+        for metricKey, suffix in metrics.items():
+            key = f"{variable}{metricKey}"
+            root_name = f"{variable}{suffix}"
+            result[key] = Hist(rootdir, root_name)
+            self._register(coll, key, root_name)
+        return result
 
     def loadData(self):
         """Load all secondary-vertex validation histograms from the DQM ROOT files.
@@ -185,31 +195,40 @@ class SecondaryVertexingDQMPlotter(DQMPlotter):
         variables_without_eff = ["decayLengthSig", "chi2ndof"]
         variables_with_res    = variables_with_eff[:-1] + ["phi", "x", "y", "z"]
 
+        # Maps user-facing key → ROOT histogram name for manually-loaded histograms.
+        manual_hists = {
+            "nSVs":                       "numRecoSVs",
+            "nAllSimSVs":                 "numSimSVsAll",
+            "nSignalSimSVs":              "numSimSVsSignal",
+            "trackEff":                   "trackEfficiency",
+            "trackEffVsDecayLength":      "trackEfficiencyProfile_vs_decayLength",
+            "trackEffVsNTracksRecoSV":    "trackEfficiencyProfile_vs_nTracksRecoSV",
+            "trackEffVsNTracksSimSV":     "trackEfficiencyProfile_vs_nTracksSimSV",
+            "trackPurity":                "trackPurity",
+            "trackPurityVsDecayLength":   "trackPurityProfile_vs_decayLength",
+            "trackPurityVsNTracksRecoSV": "trackPurityProfile_vs_nTracksRecoSV",
+            "trackPurityVsNTracksSimSV":  "trackPurityProfile_vs_nTracksSimSV",
+            "trackNSharedTracks":         "nSharedTracks",
+        }
+
         for config in self.CONFIGS:
             for coll in self.COLLS:
                 colldir = self.COLLECTIONS[coll]
                 if (colldir + ";1") not in self.FILES[config].keys():
                     continue
-                self.DATA[config][coll] = {
-                    "nSVs":                       Hist(self.FILES[config][colldir], "numRecoSVs"),
-                    "nAllSimSVs":                 Hist(self.FILES[config][colldir], "numSimSVsAll"),
-                    "nSignalSimSVs":              Hist(self.FILES[config][colldir], "numSimSVsSignal"),
-                    "trackEff":                   Hist(self.FILES[config][colldir], "trackEfficiency"),
-                    "trackEffVsDecayLength":      Hist(self.FILES[config][colldir], "trackEfficiencyProfile_vs_decayLength"),
-                    "trackEffVsNTracksRecoSV":    Hist(self.FILES[config][colldir], "trackEfficiencyProfile_vs_nTracksRecoSV"),
-                    "trackEffVsNTracksSimSV":     Hist(self.FILES[config][colldir], "trackEfficiencyProfile_vs_nTracksSimSV"),
-                    "trackPurity":                Hist(self.FILES[config][colldir], "trackPurity"),
-                    "trackPurityVsDecayLength":   Hist(self.FILES[config][colldir], "trackPurityProfile_vs_decayLength"),
-                    "trackPurityVsNTracksRecoSV": Hist(self.FILES[config][colldir], "trackPurityProfile_vs_nTracksRecoSV"),
-                    "trackPurityVsNTracksSimSV":  Hist(self.FILES[config][colldir], "trackPurityProfile_vs_nTracksSimSV"),
-                    "trackNSharedTracks":         Hist(self.FILES[config][colldir], "nSharedTracks"),
-                }
+                rootdir = self.FILES[config][colldir]
+                self.DATA[config][coll] = {}
+
+                for key, root_name in manual_hists.items():
+                    self.DATA[config][coll][key] = Hist(rootdir, root_name)
+                    self._register(coll, key, root_name)
+
                 for variable in variables_with_eff:
-                    self.DATA[config][coll].update(self.makeMetricDict(self.FILES[config][colldir], variable))
+                    self.DATA[config][coll].update(self.makeMetricDict(rootdir, variable, coll))
                 for variable in variables_without_eff:
-                    self.DATA[config][coll].update(self.makeMetricDict(self.FILES[config][colldir], variable, include_eff=False))
+                    self.DATA[config][coll].update(self.makeMetricDict(rootdir, variable, coll, include_eff=False))
                 for variable in variables_with_res:
-                    self.DATA[config][coll].update(self.makeResolutionDict(self.FILES[config][colldir], variable))
+                    self.DATA[config][coll].update(self.makeResolutionDict(rootdir, variable, coll))
 
     def plotStackedHistogramOfDecayTypes(
         self,

@@ -75,6 +75,10 @@ class DQMPlotter:
     # Appended only for techEff histograms (additive cut, not x-axis exclusion). None = suppress.
     CUT_TECHEFF = None
 
+    # Registry of pre-loaded histograms: {coll: {key: root_repr}}
+    # root_repr is a human-readable string identifying the ROOT histogram source.
+    HIST_REGISTRY = {}
+
     def __init__(self, CONFIGURATIONS={}, COLLECTIONS={}, DATAPATH=None):
         """Initialise the plotter, open ROOT files, and load histogram data.
 
@@ -140,6 +144,7 @@ class DQMPlotter:
             for config in self.CONFIGS
         }
         self.DATA = {config: {} for config in self.CONFIGS}
+        self.HIST_REGISTRY = {}
 
     def setPlottingConfiguration(
         self,
@@ -247,6 +252,58 @@ class DQMPlotter:
         ]
 
         cplt.setStyle(CUSTOMIZESTYLE)
+
+    def _register(self, coll, key, *hist_args):
+        """Record a histogram key and its ROOT source in ``HIST_REGISTRY``.
+
+        Called by :meth:`loadData` implementations once per (collection, key) pair.
+        Safe to call multiple times for the same key — only the first call is stored.
+
+        Args:
+            coll (str): Collection name (key in ``COLLECTIONS``).
+            key (str): User-facing histogram key (as stored in ``self.DATA``).
+            *hist_args: Either one string (the raw ROOT histogram name) or two strings
+                ``(count_quantity, bin_quantity)`` matching the :class:`~cmsplot.Hist`
+                constructor.  For derived histograms pass a single descriptive string
+                such as ``"sum(fakeVsEta, dupVsEta)"``.
+        """
+        if coll not in self.HIST_REGISTRY:
+            self.HIST_REGISTRY[coll] = {}
+        if key not in self.HIST_REGISTRY[coll]:
+            if len(hist_args) == 2:
+                root_repr = f"{hist_args[0]} | {hist_args[1]}"
+            else:
+                root_repr = str(hist_args[0])
+            self.HIST_REGISTRY[coll][key] = root_repr
+
+    def listHistograms(self, coll=None):
+        """Print a table of available histogram keys and their ROOT histogram sources.
+
+        Covers all histograms pre-loaded by :meth:`loadData` as well as any
+        additionally registered via :meth:`_register`.  Histograms loaded lazily
+        by :meth:`plotHistogram` are not shown here.
+
+        Args:
+            coll (str, optional): Restrict output to one collection.  If ``None``
+                (default), all collections are printed.
+
+        Example::
+
+            plotter.listHistograms()
+            plotter.listHistograms("PixelTracks")
+        """
+        colls = [coll] if coll else sorted(self.HIST_REGISTRY.keys())
+        for c in colls:
+            entries = self.HIST_REGISTRY.get(c, {})
+            if not entries:
+                print(f"No histograms registered for collection '{c}'.")
+                continue
+            print(f"\nCollection: {c}")
+            w = max(len(k) for k in entries) + 2
+            print(f"  {'Key':<{w}}  ROOT source")
+            print(f"  {'-'*w}  {'-'*45}")
+            for key, root_repr in entries.items():
+                print(f"  {key:<{w}}  {root_repr}")
 
     def loadData(self):
         """Load histogram data from ROOT files into ``self.DATA``.
@@ -430,6 +487,11 @@ class DQMPlotter:
                 ratioType="ratio",
             )
         """
+        print("Plot histogram:")
+        for c in sorted({v[1] for v in self.PLOTTINGCONFIGURATION.values()}):
+            root = self.HIST_REGISTRY.get(c, {}).get(histoName, "(not pre-registered)")
+            print(f"{histoName!r}  [{c}]  →  {root}")
+
         ISEFF = ("eff" in histoName) or ("techEff" in histoName)
 
         ADDPLACE = (0.8 if ISEFF else 0.6) if self.RATIO else (0.65 if ISEFF else 0.54)
@@ -592,4 +654,5 @@ class DQMPlotter:
         plt.subplots_adjust(hspace=0.0)
         for saveas in self.SAVEAS:
             cplt.savefig(self.DIR + "/%s.%s" % (plotname, saveas))
+            print("Saved plot to %s/%s.%s" % (self.DIR, plotname, saveas))
         plt.show()

@@ -40,7 +40,7 @@ class TrackingDQMPlotter(DQMPlotter):
             DIR="plots/tracking",
             SAVEAS=["png", "pdf"],
         )
-        plotter.plotHistogram("efficiencyVsEta", yLim=(0.5, 1.0), limitYTicks=True)
+        plotter.plotHistogram("effVsEta", yLim=(0.5, 1.0), limitYTicks=True)
         plotter.plotHistogram("fakeVsEta",       yLim=(0.0, 0.3))
     """
 
@@ -62,6 +62,42 @@ class TrackingDQMPlotter(DQMPlotter):
         "Vertex":  r"$r_\text{vertex} < 2.5\,\text{cm}$",
     }
 
+    # Maps user-facing key → Hist constructor args (count_quantity,) or (count_quantity, bin_quantity).
+    # Drives both loadData and HIST_REGISTRY population.
+    _HIST_DEFS = {
+        # Efficiency
+        "effVsEta":         ("efficiency", "eta"),
+        "effVsPt":          ("efficiency", "pt"),
+        "effVsPhi":         ("efficiency", "phi"),
+        "effVsVertex":      ("effic_vs_vertpos",),
+        # Fake rate
+        "fakeVsEta":        ("fake", "eta"),
+        "fakeVsPt":         ("fake", "pt"),
+        "fakeVsPhi":        ("fake", "phi"),
+        # Duplicate rate
+        "dupVsEta":         ("duplicate", "eta"),
+        "dupVsPt":          ("duplicate", "pt"),
+        "dupVsPhi":         ("duplicate", "phi"),
+        # Resolution (σ of pull distributions)
+        "ptResVsEta":       ("ptres_vs_eta_Sigma",),
+        "ptResVsPt":        ("ptres_vs_pt_Sigma",),
+        "phiResVsEta":      ("phires_vs_eta_Sigma",),
+        "dxyResVsEta":      ("dxyres_vs_eta_Sigma",),
+        "dzResVsEta":       ("dzres_vs_eta_Sigma",),
+        # Track counts
+        "recoAssocVsEta":   ("num_assoc(recoToSim)_eta",),
+        "recoAssocVsPt":    ("num_assoc(recoToSim)_pT",),
+        "nTracksVsEta":     ("num_reco_eta",),
+        "nTracksVsPt":      ("num_reco_pT",),
+        "nDupsVsEta":       ("num_duplicate_eta",),
+        "nDupsVsPt":        ("num_duplicate_pT",),
+        "hitsVsEta":        ("hits_eta",),
+        "nSimVsEta":        ("num_simul_eta",),
+        "nSimVsPt":         ("num_simul_pT",),
+        "nSimVsPhi":        ("num_simul_phi",),
+        "nSimVsVertex":     ("num_simul_vertpos",),
+    }
+
     def loadData(self):
         """Load all tracking-validation histograms from the DQM ROOT files.
 
@@ -71,14 +107,21 @@ class TrackingDQMPlotter(DQMPlotter):
 
         The following histogram keys are available after loading:
 
-        **Efficiency / fake / duplicate rates** (vs η, pT, φ, vertex radius):
+        **Efficiency** (vs η, pT, φ, vertex radius):
 
-        - ``"efficiencyVsEta"``, ``"efficiencyVsPt"``, ``"efficiencyVsPhi"``,
-          ``"efficiencyVsVertex"``
+        - ``"effVsEta"``, ``"effVsPt"``, ``"effVsPhi"``, ``"effVsVertex"``
+
+        **Fake rate** (vs η, pT, φ):
+
         - ``"fakeVsEta"``, ``"fakeVsPt"``, ``"fakeVsPhi"``
+
+        **Duplicate rate** (vs η, pT, φ):
+
         - ``"dupVsEta"``, ``"dupVsPt"``, ``"dupVsPhi"``
-        - ``"fake+dupVsEta"``, ``"fake+dupVsPt"``, ``"fake+dupVsPhi"``
-          (sum of fake and duplicate rates)
+
+        **Fake + duplicate** (derived, vs η, pT, φ):
+
+        - ``"fakePlusDupVsEta"``, ``"fakePlusDupVsPt"``, ``"fakePlusDupVsPhi"``
 
         **Track counts** (vs η, pT):
 
@@ -86,55 +129,42 @@ class TrackingDQMPlotter(DQMPlotter):
         - ``"nSimVsEta"``, ``"nSimVsPt"``, ``"nSimVsPhi"``, ``"nSimVsVertex"``
         - ``"nDupsVsEta"``, ``"nDupsVsPt"``
         - ``"nFakesVsEta"``, ``"nFakesVsPt"``
-          (derived as ``nTracks - assoc(RecoToSim)``)
-        - ``"assoc(RecoToSim)VsEta"``, ``"assoc(RecoToSim)VsPt"``
+          (derived as ``nTracks − recoAssoc``)
+        - ``"recoAssocVsEta"``, ``"recoAssocVsPt"``
+          (number of tracks matched reco→sim)
 
         **Resolution** (σ of pull distributions vs η or pT):
 
-        - ``"ptresVsEta"``, ``"ptresVsPt"``
-        - ``"phiresVsEta"``, ``"dxyresVsEta"``, ``"dzresVsEta"``
+        - ``"ptResVsEta"``, ``"ptResVsPt"``
+        - ``"phiResVsEta"``, ``"dxyResVsEta"``, ``"dzResVsEta"``
 
         **Hit counts**:
 
         - ``"hitsVsEta"``
+
+        Use :meth:`~DQMPlotter.listHistograms` to display the full list with ROOT sources.
         """
         for config in self.CONFIGS:
             for coll in self.COLLS:
                 colldir = self.COLLECTIONS[coll]
                 if (colldir + ";1") not in self.FILES[config].keys():
                     continue
-                self.DATA[config][coll] = {
-                    "efficiencyVsEta":         Hist(self.FILES[config][colldir], "efficiency", "eta"),
-                    "fakeVsEta":               Hist(self.FILES[config][colldir], "fake", "eta"),
-                    "dupVsEta":                Hist(self.FILES[config][colldir], "duplicate", "eta"),
-                    "efficiencyVsPt":          Hist(self.FILES[config][colldir], "efficiency", "pt"),
-                    "fakeVsPt":                Hist(self.FILES[config][colldir], "fake", "pt"),
-                    "dupVsPt":                 Hist(self.FILES[config][colldir], "duplicate", "pt"),
-                    "efficiencyVsPhi":         Hist(self.FILES[config][colldir], "efficiency", "phi"),
-                    "fakeVsPhi":               Hist(self.FILES[config][colldir], "fake", "phi"),
-                    "dupVsPhi":                Hist(self.FILES[config][colldir], "duplicate", "phi"),
-                    "efficiencyVsVertex":      Hist(self.FILES[config][colldir], "effic_vs_vertpos"),
-                    "ptresVsEta":              Hist(self.FILES[config][colldir], "ptres_vs_eta_Sigma"),
-                    "ptresVsPt":               Hist(self.FILES[config][colldir], "ptres_vs_pt_Sigma"),
-                    "phiresVsEta":             Hist(self.FILES[config][colldir], "phires_vs_eta_Sigma"),
-                    "dxyresVsEta":             Hist(self.FILES[config][colldir], "dxyres_vs_eta_Sigma"),
-                    "dzresVsEta":              Hist(self.FILES[config][colldir], "dzres_vs_eta_Sigma"),
-                    "assoc(RecoToSim)VsEta":   Hist(self.FILES[config][colldir], "num_assoc(recoToSim)_eta"),
-                    "assoc(RecoToSim)VsPt":    Hist(self.FILES[config][colldir], "num_assoc(recoToSim)_pT"),
-                    "nTracksVsEta":            Hist(self.FILES[config][colldir], "num_reco_eta"),
-                    "nTracksVsPt":             Hist(self.FILES[config][colldir], "num_reco_pT"),
-                    "nDupsVsEta":              Hist(self.FILES[config][colldir], "num_duplicate_eta"),
-                    "nDupsVsPt":               Hist(self.FILES[config][colldir], "num_duplicate_pT"),
-                    "hitsVsEta":               Hist(self.FILES[config][colldir], "hits_eta"),
-                    "nSimVsEta":               Hist(self.FILES[config][colldir], "num_simul_eta"),
-                    "nSimVsPt":                Hist(self.FILES[config][colldir], "num_simul_pT"),
-                    "nSimVsPhi":               Hist(self.FILES[config][colldir], "num_simul_phi"),
-                    "nSimVsVertex":            Hist(self.FILES[config][colldir], "num_simul_vertpos"),
-                }
-                d = self.DATA[config][coll]
-                d["fake+dupVsEta"]  = getSumHist(d["fakeVsEta"],  d["dupVsEta"])
-                d["fake+dupVsPt"]   = getSumHist(d["fakeVsPt"],   d["dupVsPt"])
-                d["fake+dupVsPhi"]  = getSumHist(d["fakeVsPhi"],  d["dupVsPhi"])
-                d["nFakesVsEta"]    = getDiffHist(d["nTracksVsEta"], d["assoc(RecoToSim)VsEta"])
-                d["nFakesVsPt"]     = getDiffHist(d["nTracksVsPt"],  d["assoc(RecoToSim)VsPt"])
+                rootdir = self.FILES[config][colldir]
+                self.DATA[config][coll] = {}
 
+                for key, args in self._HIST_DEFS.items():
+                    self.DATA[config][coll][key] = Hist(rootdir, *args)
+                    self._register(coll, key, *args)
+
+                d = self.DATA[config][coll]
+                d["fakePlusDupVsEta"]  = getSumHist(d["fakeVsEta"],  d["dupVsEta"])
+                d["fakePlusDupVsPt"]   = getSumHist(d["fakeVsPt"],   d["dupVsPt"])
+                d["fakePlusDupVsPhi"]  = getSumHist(d["fakeVsPhi"],  d["dupVsPhi"])
+                d["nFakesVsEta"]       = getDiffHist(d["nTracksVsEta"], d["recoAssocVsEta"])
+                d["nFakesVsPt"]        = getDiffHist(d["nTracksVsPt"],  d["recoAssocVsPt"])
+
+                self._register(coll, "fakePlusDupVsEta", "sum(fakeVsEta, dupVsEta)")
+                self._register(coll, "fakePlusDupVsPt",  "sum(fakeVsPt, dupVsPt)")
+                self._register(coll, "fakePlusDupVsPhi", "sum(fakeVsPhi, dupVsPhi)")
+                self._register(coll, "nFakesVsEta",      "diff(nTracksVsEta, recoAssocVsEta)")
+                self._register(coll, "nFakesVsPt",       "diff(nTracksVsPt, recoAssocVsPt)")
