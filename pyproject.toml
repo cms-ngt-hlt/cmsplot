@@ -7,6 +7,8 @@ name = "cmsplot"
 version = "0.1.0"
 description = "CMS-style plotting utilities and DQM validation plotters, developed within the NGT CMS group at CERN."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.9"
 authors = [
     { name = "Jan Schulz", email = "jan@fiveschulz.de" },
