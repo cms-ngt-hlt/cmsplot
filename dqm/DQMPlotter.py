@@ -456,8 +456,11 @@ class DQMPlotter:
                 contains ``"eff"`` or ``"techEff"`` are treated as efficiencies:
                 cut labels are added automatically and ``limitYTicks`` is useful.
             yLim (tuple[float | None, float | None]): ``(yMin, yMax)`` for the
-                main panel.  ``None`` uses the automatic matplotlib limit.  Extra
-                headroom for the legend is added on top automatically.
+                main panel.  ``None`` keeps matplotlib's autoscaled value for that
+                side.  No headroom is added automatically — since the legend's
+                height depends on ``LEGENDNCOLS`` and the number of overlaid
+                entries, include enough headroom in ``yMax`` yourself so the
+                legend doesn't cover the data.
             xLim (tuple[float | None, float | None]): ``(xMin, xMax)`` for the
                 x-axis.  ``None`` uses the automatic limit.
             xLabel (str, optional): x-axis label.  If ``None``, an automatic label
@@ -500,8 +503,6 @@ class DQMPlotter:
             print(f"{histoName!r}  [{c}]  →  {root}")
 
         ISEFF = ("eff" in histoName) or ("techEff" in histoName)
-
-        ADDPLACE = (0.8 if ISEFF else 0.6) if self.RATIO else (0.65 if ISEFF else 0.54)
 
         if self.RATIO:
             fig, (ax1, ax2) = plt.subplots(2, sharex=True, height_ratios=[5, 1], figsize=(10, 11))
@@ -584,21 +585,11 @@ class DQMPlotter:
         if ("Pt" in histoName) or (xScale == "log"):
             plt.xscale("log")
 
-        if yLim[0] is None and yScale is None:
-            yLim = (ax1.get_ylim()[0], yLim[1])
-        if yLim[1] is None:
-            yLim = (yLim[0], ax1.get_ylim()[1])
         if yScale is not None:
             ax1.set_yscale(yScale)
-            if yLim[0] is None:
-                yLim = (ax1.get_ylim()[0], yLim[1])
-            if yScale == "log":
-                yLimTrue = [yLim[0], yLim[1] * 10 ** (np.log10(yLim[1] / yLim[0]) * ADDPLACE)]
-            else:
-                yLimTrue = [yLim[0], yLim[1] + ADDPLACE * (yLim[1] - yLim[0])]
-        else:
-            yLimTrue = [yLim[0], yLim[1] + ADDPLACE * (yLim[1] - yLim[0])]
-        ax1.set_ylim(yLimTrue)
+
+        # a None bound keeps matplotlib's autoscaled value for that side
+        ax1.set_ylim(yLim)
         ax1.set_xlim(xLim)
 
         if limitYTicks:
