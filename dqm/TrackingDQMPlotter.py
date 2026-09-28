@@ -57,8 +57,9 @@ class TrackingDQMPlotter(DQMPlotter):
     COLLS = COLLECTIONS.keys()
     # "ZVertex" key never appears in histogram names, so this cut is always shown.
     EFFCUTS = {
-        "ZVertex": r"$|z_\text{vertex}| < 30\,\text{cm}$",
         "Pt":      r"$p_\text{T}>0.9\,\text{GeV}$",
+        "Eta":     r"$|\eta| < 3.5$",
+        "ZVertex": r"$|z_\text{vertex}| < 30\,\text{cm}$",
         "Vertex":  r"$r_\text{vertex} < 2.5\,\text{cm}$",
     }
 
@@ -84,6 +85,7 @@ class TrackingDQMPlotter(DQMPlotter):
         "phiResVsEta":      ("phires_vs_eta_Sigma",),
         "dxyResVsEta":      ("dxyres_vs_eta_Sigma",),
         "dzResVsEta":       ("dzres_vs_eta_Sigma",),
+        "etaResVsEta":       ("etares_vs_eta_Sigma",),
         # Track counts
         "recoAssocVsEta":   ("num_assoc(recoToSim)_eta",),
         "recoAssocVsPt":    ("num_assoc(recoToSim)_pT",),
