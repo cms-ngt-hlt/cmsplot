@@ -92,8 +92,7 @@ plotter.plotHistogram("ptResVsEta", yLabel=r"$\sigma(p_\mathrm{T})/p_\mathrm{T}$
 | Key | ROOT subdirectory |
 |---|---|
 | `"GeneralTracks"` | `hltGeneral_hltAssociatorByHits` |
-| `"PixelTracks"` | `hltPhase2PixelCAExtension_hltAssociatorByHits` |
-| `"PixelTracksHP"` | `hltPhase2Pixel_hltAssociatorByHits` |
+| `"PixelTracks"` | `hltPhase2Pixel_hltAssociatorByHits` |
 
 **Key histogram names** (see `TrackingDQMPlotter.loadData` docstring for the full list)
 

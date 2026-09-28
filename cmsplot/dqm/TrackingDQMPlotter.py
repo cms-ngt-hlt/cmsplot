@@ -9,13 +9,10 @@ class TrackingDQMPlotter(DQMPlotter):
     provides efficiency, fake-rate, duplicate-rate, resolution, and hit-count
     histograms for comparison across reconstruction configurations.
 
-    Three track collections are available by default:
+    Two track collections are available by default:
 
     - ``"GeneralTracks"`` — general-purpose HLT tracks (``hltGeneral``).
-    - ``"PixelTracks"`` — Phase-2 pixel CA tracks with extensions
-      (``hltPhase2PixelCAExtension``).
-    - ``"PixelTracksHP"`` — Phase-2 high-purity pixel tracks
-      (``hltPhase2Pixel``).
+    - ``"PixelTracks"`` — Phase-2 high-purity pixel tracks (``hltPhase2Pixel``).
 
     ROOT files are expected at ``data/Tracking/DQM_Tracking_<tag>.root``,
     inside the path ``DQMData/Run 1/HLT/Run summary/Tracking/ValidationWRTtp``.
@@ -51,8 +48,7 @@ class TrackingDQMPlotter(DQMPlotter):
     DIR = "plots/trackingValidation"
     COLLECTIONS = {
         "GeneralTracks": "hltGeneral_hltAssociatorByHits",
-        "PixelTracks": "hltPhase2PixelCAExtension_hltAssociatorByHits",
-        "PixelTracksHP": "hltPhase2Pixel_hltAssociatorByHits",
+        "PixelTracks": "hltPhase2Pixel_hltAssociatorByHits",
     }
     COLLS = COLLECTIONS.keys()
     # "ZVertex" key never appears in histogram names, so this cut is always shown.
