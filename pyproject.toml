@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cmsplot"
+version = "0.1.0"
+description = "CMS-style plotting utilities and DQM validation plotters, developed within the NGT CMS group at CERN."
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [
+    { name = "Jan Schulz", email = "jan@fiveschulz.de" },
+]
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "mplhep",
+    "scipy",
+    "uproot",
+]
+
+[tool.setuptools.packages.find]
+include = ["cmsplot*"]
