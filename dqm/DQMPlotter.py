@@ -62,6 +62,7 @@ class DQMPlotter:
     RATIO = True
     EXTENDPLOTNAME = False
     LEGEND = True
+    LEGENDNCOLS = 2
     MARKERS = ["s", "^", "D", "v", "o", "."] + ["."] * 30
     PLOTTINGCONFIGURATION = {}
     COLORS = []
@@ -79,7 +80,7 @@ class DQMPlotter:
     # root_repr is a human-readable string identifying the ROOT histogram source.
     HIST_REGISTRY = {}
 
-    def __init__(self, CONFIGURATIONS={}, COLLECTIONS={}, DATAPATH=None):
+    def __init__(self, CONFIGURATIONS={}, COLLECTIONS={}, DATAPATH=None, FILENAMEPREFIX=None):
         """Initialise the plotter, open ROOT files, and load histogram data.
 
         Args:
@@ -109,10 +110,11 @@ class DQMPlotter:
             CONFIGURATIONS=CONFIGURATIONS,
             COLLECTIONS=COLLECTIONS,
             DATAPATH=DATAPATH,
+            FILENAMEPREFIX=FILENAMEPREFIX,
         )
         self.loadData()
 
-    def updateConfiguration(self, CONFIGURATIONS={}, COLLECTIONS={}, DATAPATH=None):
+    def updateConfiguration(self, CONFIGURATIONS={}, COLLECTIONS={}, DATAPATH=None, FILENAMEPREFIX=None):
         """Merge additional run configurations or collections into the current setup.
 
         Can be called after ``__init__`` to add more ROOT files without discarding
@@ -133,6 +135,8 @@ class DQMPlotter:
             self.COLLS = self.COLLECTIONS.keys()
         if DATAPATH:
             self.DATAPATH = DATAPATH
+        if FILENAMEPREFIX:
+            self.FILENAMEPREFIX = FILENAMEPREFIX
 
         self.CONFIGS = list(self.CONFIGURATIONS.keys())
         self.NAMES = {k: v[1] for k, v in self.CONFIGURATIONS.items()}
@@ -158,6 +162,7 @@ class DQMPlotter:
         RATIO=True,
         EXTENDPLOTNAME=False,
         LEGEND=True,
+        LEGENDNCOLS=2,
         DIR=None,
         SAVEAS=["png"],
         MARKERS=["s", "^", "D", "v", "o", "."] + ["."] * 30,
@@ -200,6 +205,7 @@ class DQMPlotter:
             RATIO (bool): Show a ratio (or difference) panel below the main plot.
             EXTENDPLOTNAME (bool): Append config/collection tags to the saved filename.
             LEGEND (bool): Show the legend.
+            LEGENDNCOLS (int): Number of columns in the legend.
             DIR (str, optional): Output directory for saved figures.
             SAVEAS (list[str]): File extensions to save, e.g. ``["png", "pdf"]``.
             MARKERS (list): Matplotlib marker strings, one per overlay line.
@@ -242,6 +248,7 @@ class DQMPlotter:
         self.RATIO = RATIO
         self.EXTENDPLOTNAME = EXTENDPLOTNAME
         self.LEGEND = LEGEND
+        self.LEGENDNCOLS = LEGENDNCOLS
         if DIR is not None:
             self.DIR = DIR
         self.SAVEAS = SAVEAS
@@ -556,7 +563,7 @@ class DQMPlotter:
                     0.025,
                     (0.78 if ISEFF else 0.84) if self.RATIO else (0.8 if ISEFF else 0.86),
                 ),
-                handletextpad=0.25, ncols=2, columnspacing=0.8,
+                handletextpad=0.25, ncols=self.LEGENDNCOLS, columnspacing=0.8,
             )
 
         cplt.xlabel(None, ax=ax1)
@@ -585,7 +592,10 @@ class DQMPlotter:
             ax1.set_yscale(yScale)
             if yLim[0] is None:
                 yLim = (ax1.get_ylim()[0], yLim[1])
-            yLimTrue = [yLim[0], yLim[1] * 10 ** (np.log10(yLim[1] / yLim[0]) * ADDPLACE)]
+            if yScale == "log":
+                yLimTrue = [yLim[0], yLim[1] * 10 ** (np.log10(yLim[1] / yLim[0]) * ADDPLACE)]
+            else:
+                yLimTrue = [yLim[0], yLim[1] + ADDPLACE * (yLim[1] - yLim[0])]
         else:
             yLimTrue = [yLim[0], yLim[1] + ADDPLACE * (yLim[1] - yLim[0])]
         ax1.set_ylim(yLimTrue)
