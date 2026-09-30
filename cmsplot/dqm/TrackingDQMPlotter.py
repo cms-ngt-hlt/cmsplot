@@ -20,8 +20,9 @@ class TrackingDQMPlotter(DQMPlotter):
     Efficiency plots automatically show the active selection cuts.  The cut on the
     x-axis variable is excluded automatically via the ``EFFCUTS`` keys:
 
-    - ``"ZVertex"`` — always shown (never an x-axis variable): ``|z_vertex| < 30 cm``
     - ``"Pt"``      — suppressed on pT plots: ``pT > 0.9 GeV``
+    - ``"Eta"``     — suppressed on eta plots: ``|eta| < 3.5``
+    - ``"ZVertex"`` — always shown (never an x-axis variable): ``|z_vertex| < 30 cm``
     - ``"Vertex"``  — suppressed on vertex-radius plots: ``r_vertex < 2.5 cm``
 
     Example::
@@ -44,7 +45,8 @@ class TrackingDQMPlotter(DQMPlotter):
     DATAPATH = "data/Tracking"
     FILENAMEPREFIX = "DQM_Tracking_"
     ROOTPATH = "DQMData/Run 1/HLT/Run summary/Tracking/ValidationWRTtp"
-    DATALABEL = r"$\text{t}\bar{\text{t}}$ + 200 PU ($\sqrt{s} = 14\,\text{TeV}$), HLT pixel tracks"
+    DATALABEL = r"$\text{t}\bar{\text{t}}$ + 200 PU ($\sqrt{s} = 14\,\text{TeV}$)"
+    OBJECTLABEL = "HLT pixel tracks"
     DIR = "plots/trackingValidation"
     COLLECTIONS = {
         "GeneralTracks": "hltGeneral_hltAssociatorByHits",
