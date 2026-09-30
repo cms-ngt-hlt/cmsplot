@@ -214,7 +214,7 @@ Each call to `plotHistogram` also prints a one-line reminder:
 
 | Parameter | Default | Description |
 |---|---|---|
-| `PLOTTINGCONFIGURATION` | *(required)* | Which overlays to draw — a collection name string, a list of `[tag, coll]` pairs, or a full label→`[tag, coll]` dict |
+| `PLOTTINGCONFIGURATION` | *(required)* | Which overlays to draw — a collection name string, a list of `[tag, coll]` pairs (optionally + label suffix + color override), or a full label→`[tag, coll]` dict (optionally + color override) |
 | `RATIO` | `True` | Show ratio / difference sub-panel |
 | `DRAFT` | `False` | Print a grey DRAFT watermark |
 | `CMSLABEL` | `"Simulation (Private Work)"` | Left-hand CMS label |
@@ -242,18 +242,40 @@ Each call to `plotHistogram` also prints a one-line reminder:
 
 ### Comparing two collections within the same config
 
-Pass a dict to `PLOTTINGCONFIGURATION` for full control over labels:
+Pass a dict to `PLOTTINGCONFIGURATION` for full control over labels. By default
+each curve's color comes from its `config_tag` in `CONFIGURATIONS`, so two
+collections from the *same* config would otherwise share a color — add an
+optional 3rd list element to override it per curve:
 
 ```python
 plotter.setPlottingConfiguration(
     PLOTTINGCONFIGURATION={
         "Pixel tracks":   ["Run3_v2", "PixelTracks"],
-        "General tracks": ["Run3_v2", "GeneralTracks"],
+        "General tracks": ["Run3_v2", "GeneralTracks", "#000000"],
     },
     RATIO=True,
 )
 plotter.plotHistogram("effVsEta")
 ```
+
+The list form supports the same idea, plus a label *suffix* (3rd element,
+appended to the auto-derived label; pass `None` to skip it while still
+setting a color) — this is what makes it possible to reuse the same
+`config_tag` for more than one collection without duplicating its ROOT file:
+
+```python
+plotter.setPlottingConfiguration(
+    PLOTTINGCONFIGURATION=[
+        ["Run3_v1", "PixelTracks"],
+        ["Run3_v2", "PixelTracks"],
+        ["Run3_v2", "GeneralTracks", " (general tracks)", "#000000"],
+    ],
+)
+```
+
+A `ValueError` is raised if two entries still resolve to the same label
+(e.g. the same `config_tag` + collection reused, or a missing suffix), rather
+than silently dropping one of the curves.
 
 ---
 

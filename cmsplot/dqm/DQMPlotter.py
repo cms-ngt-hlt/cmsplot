@@ -173,17 +173,33 @@ class DQMPlotter:
         Must be called before any plotting method.  ``PLOTTINGCONFIGURATION``
         selects the (config, collection) pairs to draw and accepts three forms:
 
-        - **dict** — maps legend label to ``[config_tag, collection_name]``::
+        - **dict** — maps legend label to ``[config_tag, collection_name]``, with
+          an optional 3rd element overriding that curve's color (default: the
+          color set for ``config_tag`` in ``CONFIGURATIONS``)::
 
               {
                   "Baseline pixel tracks": ["Run3_v1", "PixelTracks"],
                   "New pixel tracks":      ["Run3_v2", "PixelTracks"],
+                  "New general tracks":    ["Run3_v2", "GeneralTracks", "#000000"],
               }
 
         - **list** — list of ``[config_tag, collection_name]`` pairs; legend labels
-          are taken from the ``NAMES`` dict (i.e. the label set in ``CONFIGURATIONS``)::
+          are taken from the ``NAMES`` dict (i.e. the label set in ``CONFIGURATIONS``).
+          Two optional trailing elements refine this: a label *suffix* appended to
+          the auto-derived label (needed when the same ``config_tag`` is reused for
+          more than one collection, e.g. to overlay ``PixelTracks`` and
+          ``GeneralTracks`` for the same run without duplicating its ROOT file —
+          pass ``None`` to skip the suffix while still setting a color), and a
+          color override::
 
-              [["Run3_v1", "PixelTracks"], ["Run3_v2", "PixelTracks"]]
+              [
+                  ["Run3_v1", "PixelTracks"],
+                  ["Run3_v2", "PixelTracks"],
+                  ["Run3_v2", "GeneralTracks", " (general tracks)", "#000000"],
+              ]
+
+          A ``ValueError`` is raised if two entries still resolve to the same
+          label (add a distinguishing suffix to fix it).
 
         - **string** — a single collection name; one line per loaded config::
 
@@ -191,7 +207,8 @@ class DQMPlotter:
 
         Args:
             PLOTTINGCONFIGURATION (dict | list | str): Selection of
-                (config, collection) pairs to overlay (see above).
+                (config, collection) pairs to overlay, with optional per-curve
+                color (and, for the list form, label-suffix) overrides (see above).
             DRAFT (bool): If ``True``, print a grey "DRAFT" watermark on every plot.
             CMSLABEL (str): Left-hand CMS label, e.g. ``"Simulation (Private Work)"``.
             DATALABEL (str, optional): Override the right-hand label (dataset description).
@@ -221,13 +238,34 @@ class DQMPlotter:
                 DIR="plots/tracking",
                 SAVEAS=["png", "pdf"],
             )
+
+            # overlay pixel and general tracks for the same run, without
+            # duplicating its ROOT file under a second config tag
+            plotter.setPlottingConfiguration(
+                PLOTTINGCONFIGURATION=[
+                    ["Run3_v2", "PixelTracks"],
+                    ["Run3_v2", "GeneralTracks", " (general tracks)", "#000000"],
+                ],
+            )
         """
         if isinstance(PLOTTINGCONFIGURATION, dict):
             self.PLOTTINGCONFIGURATION = PLOTTINGCONFIGURATION
         elif isinstance(PLOTTINGCONFIGURATION, list):
-            self.PLOTTINGCONFIGURATION = {
-                self.NAMES[k[0]]: k for k in PLOTTINGCONFIGURATION
-            }
+            self.PLOTTINGCONFIGURATION = {}
+            for entry in PLOTTINGCONFIGURATION:
+                config, coll = entry[0], entry[1]
+                labelSuffix = entry[2] if len(entry) > 2 and entry[2] else ""
+                label = self.NAMES[config] + labelSuffix
+                if label in self.PLOTTINGCONFIGURATION:
+                    raise ValueError(
+                        "PLOTTINGCONFIGURATION label %r is used by more than one "
+                        "entry - add a distinguishing label suffix (3rd list "
+                        "element)." % label
+                    )
+                value = [config, coll]
+                if len(entry) > 3 and entry[3] is not None:
+                    value.append(entry[3])
+                self.PLOTTINGCONFIGURATION[label] = value
         elif PLOTTINGCONFIGURATION in self.COLLS:
             self.PLOTTINGCONFIGURATION = {
                 self.NAMES[k]: [k, PLOTTINGCONFIGURATION] for k in self.CONFIGS
@@ -254,8 +292,8 @@ class DQMPlotter:
         self.SAVEAS = SAVEAS
         self.MARKERS = MARKERS
         self.COLORS = [
-            self.CONFIGCOLORS[self.PLOTTINGCONFIGURATION[c][0]]
-            for c in self.PLOTTINGCONFIGURATION.keys()
+            v[2] if len(v) > 2 and v[2] is not None else self.CONFIGCOLORS[v[0]]
+            for v in self.PLOTTINGCONFIGURATION.values()
         ]
 
         cplt.setStyle(CUSTOMIZESTYLE)
