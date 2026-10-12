@@ -1,0 +1,16 @@
+{
+  "description": "HLT pixel/general tracking, grouped as one flat 'Tracking' step (IT/OT hits, seeding, ITACA, final fit, ...).",
+  "classifier": "membership",
+  "categories": {
+    "IT Hits": "IT hits",
+    "OT Hits": "OT hits",
+    "Stubs": "Stubs",
+    "Masking": "Hit masking",
+    "Track Seeding": "Track seeding",
+    "Track Building": "Track building",
+    "Track Fitting": "Track fitting",
+    "Track Selection": "Track selection",
+    "Data Conversion": "Data transfer/conversion"
+  },
+  "step": "Tracking"
+}

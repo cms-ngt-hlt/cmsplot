@@ -279,6 +279,96 @@ than silently dropping one of the curves.
 
 ---
 
+## Timing breakdown plots
+
+`cmsplot.timing` builds stacked-bar timing breakdowns from CMSSW per-module
+timing reports — e.g. comparing how computing time splits across "IT Hits",
+"Legacy Seeding", "Final Build+Fit", ... between several reconstruction
+configurations. It follows the same two-step workflow as the DQM plotters,
+but since every timing study groups its modules differently, the
+project-specific parts (how to load one config's data, how to classify a
+module into a group, and the event count to normalize by) are passed in
+rather than implemented per subclass:
+
+The module-grouping patterns and colors are shared CMS-wide reference data,
+not something to redefine per study, so they're bundled with `cmsplot`
+itself rather than loaded from a file you have to keep in sync — just pick a
+grouping by name:
+
+```python
+from cmsplot.timing import TimingPlotter, load_grouping, load_modules_json
+
+grouping = load_grouping("tracking")  # see available_groupings() for the full list
+
+plotter = TimingPlotter(
+    CONFIGURATIONS={
+        "Legacy": "Legacy\n[2 iterations]",
+        "ITACA":  "ITACA\n[2 GPU iterations]",
+    },
+    loadModules=lambda tag: load_modules_json(f"timing/{tag}_NGTScouting.json"),
+    classify=grouping.classify(),
+    Nevents=39744,
+)
+
+plotter.setPlottingConfiguration(
+    CMSLABEL="Simulation (Private Work)",
+    DATALABEL="HLT tracking, run on 2x AMD EPYC 9534 with 1x NVIDIA L40",
+    DIR="plots/timing",
+)
+plotter.plotStackedTiming(
+    steps=grouping.step,
+    categories=grouping.categories,
+    colors=grouping.colors,
+    yLim=(0, 2.4),
+    breakYLim=True,   # auto-sizes a broken y-axis for any bar that overshoots yLim
+    filename="bar_total",
+)
+```
+
+Each bundled grouping is a directory (`cmsplot/timing/groupings/<name>/`)
+with `groups.json` (pattern → raw group string) and `colors.json`
+(group → color) kept as separate files — the same one-file-per-concern
+layout used by [circles](https://github.com/fwyzard/circles/tree/master/web)
+(`web/groups/*.json` + `web/colours/*.json`), so a freshly updated
+`groups.json`/`colors.json` from wherever your group maintains its canonical
+version can be dropped in directly. A third file, `meta.json`, holds the
+display labels and which classifier to use (`categories`, plus `step` or
+`stepPrefixes`) — curation that's ours, not something to overwrite from
+upstream. `load_grouping` also accepts a path to your own directory in the
+same three-file layout instead of a bundled name — see its docstring for the
+exact format, or a bundled grouping as a template. **`groups.json`'s key
+order matters**: a module is assigned to the *first* pattern it matches, and
+patterns can legitimately overlap, so when replacing it, keep the source
+file's order — don't let a formatter alphabetize the keys. Each grouping is
+built on one of two classifier primitives, exposed directly in
+`cmsplot.timing.classify` for fully custom cases:
+
+- **`classify_by_membership(patterns, mainGroups, step="Tracking")`** — every
+  matched module is tagged with a single `step` label; only groups listed in
+  `mainGroups` are kept. Use this when all groups of interest belong to one
+  logical step. The bundled `"tracking"` grouping uses this.
+- **`classify_by_step_prefix(patterns, stepPrefixes)`** — splits modules
+  across several named steps by a group-string prefix (e.g.
+  `{"InitialStep|": "InitialStep", "HighPtTripletStep|": "HighPtTripletStep"}`).
+  The bundled `"tracking_by_step"` grouping uses this.
+
+Write a plain `classify(module) -> (step, group)` function for anything a
+bundled grouping doesn't cover — returning `(None, None)` excludes a module,
+and `plotter.unmatchedModules(tag)` lists what got excluded so nothing
+silently disappears from the total.
+
+There's no special CPU-vs-GPU (or similar) concept — give each variant its
+own `CONFIGURATIONS` entry (and point `loadModules` at the right file for
+that tag), the same way you'd add any other configuration to compare.
+
+`breakYLim` needs the optional `brokenaxes` package:
+
+```bash
+pip install cmsplot[timing]
+```
+
+---
+
 ## Core utilities
 
 Beyond the DQM plotters, `cmsplot` exposes general-purpose helpers used in all notebooks:

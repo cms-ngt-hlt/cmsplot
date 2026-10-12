@@ -21,5 +21,11 @@ dependencies = [
     "uproot",
 ]
 
+[project.optional-dependencies]
+timing = ["brokenaxes"]
+
 [tool.setuptools.packages.find]
 include = ["cmsplot*"]
+
+[tool.setuptools.package-data]
+"cmsplot.timing" = ["groupings/*/*.json"]
